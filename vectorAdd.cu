@@ -4,16 +4,17 @@
  Version       : 1.0
  Last modified : December 2014
  License       : Released under the GNU GPL 3.0
- Description   : 
+ Description   :
  To build use  : nvcc vectorAdd.cu -o vectorAdd
  ============================================================================
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include <sys/time.h>
 
 static const int BLOCK_SIZE = 256;
-static const int N = 2000;
+static const int N = 268435456;
 
 #define CUDA_CHECK_RETURN(value) {           \
     cudaError_t _m_cudaStat = value;         \
@@ -35,11 +36,17 @@ int main (void)
   int *ha, *hb, *hc, *da, *db, *dc;     // host (h*) and device (d*) pointers
   int i;
 
+  struct timeval t1, t2;
+
   ha = new int[N];
   hb = new int[N];
   hc = new int[N];
 
-  CUDA_CHECK_RETURN (cudaMalloc ((void **) &da, sizeof (int) * N));
+  cudaEvent_t start, stop;
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+
+  CUDA_CHECK_RETURN (cudaMalloc ((void **) &da, sizeof (int) * N)); 
   CUDA_CHECK_RETURN (cudaMalloc ((void **) &db, sizeof (int) * N));
   CUDA_CHECK_RETURN (cudaMalloc ((void **) &dc, sizeof (int) * N));
 
@@ -53,10 +60,17 @@ int main (void)
   CUDA_CHECK_RETURN (cudaMemcpy (db, hb, sizeof (int) * N, cudaMemcpyHostToDevice));
 
   int grid = ceil (N * 1.0 / BLOCK_SIZE);
+  gettimeofday(&t1, 0);
+  // cudaEventRecord(start);
   vadd <<< grid, BLOCK_SIZE >>> (da, db, dc, N);
+  // cudaEventRecord(stop);
+  gettimeofday(&t2, 0);
+  double time = (1000000.0*(t2.tv_sec-t1.tv_sec) + t2.tv_usec-t1.tv_usec)/1000.0;
 
-  CUDA_CHECK_RETURN (cudaThreadSynchronize ());
-  // Wait for the GPU launched work to complete
+  printf("Time to generate:  %e ms \n", time);
+
+  CUDA_CHECK_RETURN (cudaDeviceSynchronize ());
+  float milliseconds = 0;
   CUDA_CHECK_RETURN (cudaGetLastError ());
   CUDA_CHECK_RETURN (cudaMemcpy (hc, dc, sizeof (int) * N, cudaMemcpyDeviceToHost));
 
